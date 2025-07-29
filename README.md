@@ -457,25 +457,30 @@ try {
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
     Last Modified   : 2025-07-29
-    Version         : 1.0
+    Version         : 1.1
     STIG-ID         : WN11-AU-000505
 #>
 
 # Define the minimum required log size in KB (1 GB)
 $RequiredSizeKB = 1024000
 
-# Registry path for Security event log settings
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security"
+# Correct STIG registry path
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
 
 try {
-    Write-Host "Configuring Security Event Log size..." -ForegroundColor Yellow
-    
+    Write-Host "Configuring Security Event Log size (STIG WN11-AU-000505)..." -ForegroundColor Yellow
+
+    # Ensure the path exists
+    if (-not (Test-Path $RegistryPath)) {
+        New-Item -Path $RegistryPath -Force | Out-Null
+    }
+
     # Set the maximum log file size
     Set-ItemProperty -Path $RegistryPath -Name "MaxSize" -Value $RequiredSizeKB -Type DWord
-    
+
     # Verify the setting was applied
     $CurrentSize = Get-ItemProperty -Path $RegistryPath -Name "MaxSize" -ErrorAction SilentlyContinue
-    
+
     if ($CurrentSize.MaxSize -ge $RequiredSizeKB) {
         Write-Host "✓ Security Event Log size successfully set to $($CurrentSize.MaxSize) KB" -ForegroundColor Green
         Write-Host "✓ STIG WN11-AU-000505 requirement satisfied" -ForegroundColor Green
@@ -489,35 +494,50 @@ try {
 
 **How it works:**
 
-**🎯 The Big Picture:** Security event logs are the most critical logs in Windows - they record authentication attempts, privilege changes, and security-related activities. STIG requires these logs to be much larger (1 GB) because security events are high-volume and extremely important for incident response and forensic analysis.
+**🎯 The Big Picture:**
+Security event logs are the most critical logs in Windows — they track login attempts, privilege escalations, audit policy changes, and other sensitive security activities. The **STIG WN11-AU-000505** mandates a minimum log size of **1 GB (1024000 KB)** to ensure these high-volume logs retain enough history for forensic investigation and incident response.
+
+---
 
 **📋 Our Strategy:**
-1. Set Security log size to 1 GB (1024000 KB) - much larger than Application logs
-2. Use the same registry modification approach but target Security log settings
-3. Verify the change took effect properly
 
-**🔍 Key Differences from Application Log:**
-```powershell
-$RequiredSizeKB = 1024000  # 1 GB instead of 32 MB
-```
-- **Why so much larger?** Security logs generate many more events:
-  - Every login attempt (successful and failed)
-  - Every privilege elevation 
-  - Every file access with auditing enabled
-  - Every policy change
-- **1024000 KB = 1 GB** provides adequate storage for high-volume security events
+1. Set the **Security Event Log size** to **1 GB (1024000 KB)** to meet STIG requirements
+2. Modify the **Group Policy-backed registry location** (not runtime path)
+3. Automatically verify the change to ensure compliance
+
+---
+
+**🔍 Key Differences from Application Log Configuration:**
 
 ```powershell
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security"
+$RequiredSizeKB = 1024000  # 1 GB for high-volume security auditing
 ```
-- Same registry structure, but targeting `\Security` instead of `\Application`
-- Windows stores each event log type in its own registry section
+
+* **Why larger?** Security logs record:
+
+  * Every successful and failed login
+  * Privilege use and elevation
+  * Sensitive file accesses (if auditing is enabled)
+  * System-level security policy changes
+* **1 GB (1024000 KB)** helps preserve more log data before it gets overwritten.
+
+```powershell
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
+```
+
+* This is the **Group Policy path**, not the live event log path
+* Used for **persistent configuration** and **STIG compliance checking**
+* Ensures settings are applied consistently even after reboots or policy refresh
+
+---
 
 **🛡️ Why This Matters:**
-- Security logs that are too small will overwrite old events quickly
-- If a security incident happens, you might lose critical evidence
-- STIG mandates 1 GB to ensure sufficient retention of security events
-- This is often the first thing forensic investigators examine during security incidents
+
+* Small log sizes cause **important security events to be lost quickly**
+* In case of a breach or insider activity, you need **historical audit trails**
+* STIG compliance isn’t just a checkbox — it's a way to ensure **logs remain useful during investigations**
+* Forensic analysts often look here first when determining the timeline of compromise
+
 
 </details>
 
