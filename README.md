@@ -338,65 +338,92 @@ try {
 }
 ```
 
-**How it works:**
+### **How It Works**
 
-**🎯 The Big Picture:** Windows stores event logs (like Application, Security, System) in files that have size limits. If these logs are too small, important security events might get overwritten before administrators can review them. STIG requires Application logs to be at least 32 MB to ensure adequate log retention.
+**🎯 The Big Picture**
+Windows stores event logs (like Application, Security, System) in files that have size limits. If these logs are too small, important security events might get overwritten before administrators can review them. The STIG requires the Application log to be at least **32 MB** to ensure adequate log retention.
 
-**📋 Our Strategy:**
-1. Define the required log size (32 MB = 32768 KB)
-2. Locate the Windows Registry setting that controls log size
-3. Change the registry value to meet STIG requirements  
-4. Verify our change was successful
-5. Handle any errors that might occur
+**📋 Our Strategy**
+This script follows a simple and robust strategy:
 
-**🔍 Line-by-Line Breakdown:**
+1.  Define the required log size (32 MB = 32768 KB).
+2.  Locate the specific Windows Registry **policy** that controls the log size.
+3.  Check if the registry path exists, and create it if it doesn't to prevent errors.
+4.  Set the registry value to meet the STIG requirement.
+5.  Verify the change was successful.
+6.  Wrap the entire operation in error handling.
+
+-----
+
+### **🔍 Line-by-Line Breakdown**
 
 ```powershell
 $RequiredSizeKB = 32768
 ```
-- `$RequiredSizeKB` = This creates a PowerShell variable (like a container) to store our target size
-- `= 32768` = We're setting it to 32768 kilobytes (which equals 32 megabytes)
-- **Why 32768?** STIG WN11-AU-000500 specifically requires Application logs to be at least 32768 KB
+
+  * `$RequiredSizeKB`: This creates a PowerShell variable (a container) to store our target size.
+  * `= 32768`: We set it to **32768 kilobytes**, which equals 32 megabytes.
+
+<!-- end list -->
 
 ```powershell
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Application"
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
 ```
-- `$RegistryPath` = Another variable to store the location in Windows Registry
-- `"HKLM:"` = HKEY_LOCAL_MACHINE (the main system registry hive)
-- `\SYSTEM\CurrentControlSet\Services\EventLog\Application` = The specific path where Application log settings are stored
-- **Think of it like:** A file path, but for the Windows Registry database
+
+  * `$RegistryPath`: Another variable to store the location in the Windows Registry.
+  * `"HKLM:\SOFTWARE\Policies\..."`: This is the crucial path for **Group Policy** settings.
+  * **Why this path?** Settings in the `Policies` key override the system's default settings and are what auditors check to ensure compliance is enforced by an administrator.
+
+<!-- end list -->
+
+```powershell
+if (-not (Test-Path $RegistryPath)) {
+    New-Item -Path $RegistryPath -Force | Out-Null
+}
+```
+
+  * This is a critical safety check.
+  * `if (-not (Test-Path ...))`: This checks if the registry path **does not** exist.
+  * `New-Item ...`: If the path is missing, this command **creates it**. This prevents the next command from failing.
+
+<!-- end list -->
 
 ```powershell
 Set-ItemProperty -Path $RegistryPath -Name "MaxSize" -Value $RequiredSizeKB -Type DWord
 ```
-This is the core command that makes the actual change. Let's break it down:
-- `Set-ItemProperty` = PowerShell command to modify registry values
-- `-Path $RegistryPath` = Tells PowerShell WHERE to make the change (using our variable)
-- `-Name "MaxSize"` = The specific registry setting we want to change (MaxSize controls log file size)
-- `-Value $RequiredSizeKB` = What we want to set it to (our 32768 KB value)
-- `-Type DWord` = The data type (DWord = 32-bit integer, which is what Windows expects for this setting)
 
-**Real-world analogy:** It's like editing a configuration file, but instead of opening a text editor, we're using PowerShell to change a specific setting in Windows' configuration database (the Registry).
+  * This is the core command that makes the change.
+  * `Set-ItemProperty`: The PowerShell command to create or modify a registry value.
+  * `-Path $RegistryPath`: Tells PowerShell **WHERE** to make the change (using our variable).
+  * `-Name "MaxSize"`: The specific setting that controls the log file size.
+  * `-Value $RequiredSizeKB`: The new value we're setting it to (our 32768 KB variable).
+  * `-Type DWord`: The data type, a 32-bit number, which Windows expects for this setting.
+
+<!-- end list -->
 
 ```powershell
 $CurrentSize = Get-ItemProperty -Path $RegistryPath -Name "MaxSize" -ErrorAction SilentlyContinue
 ```
-- `Get-ItemProperty` = PowerShell command to READ registry values (opposite of Set-ItemProperty)
-- `-Path $RegistryPath` = Same location we just modified
-- `-Name "MaxSize"` = Same setting we just changed
-- `-ErrorAction SilentlyContinue` = If there's an error reading the value, don't crash - just continue
-- `$CurrentSize =` = Store the result in a new variable so we can check it
+
+  * `Get-ItemProperty`: The command to **READ** a registry value (the opposite of `Set-ItemProperty`). We use this to verify our change.
+  * `$CurrentSize =`: Stores the result in a new variable so we can check it.
+  * `-ErrorAction SilentlyContinue`: If there's an error reading the value, don't show an error message; just continue.
+
+<!-- end list -->
 
 ```powershell
-if ($CurrentSize.MaxSize -ge $RequiredSizeKB) {
+if ($CurrentSize.MaxSize -ge $RequiredSizeKB) { ... }
 ```
-- `if` = Conditional statement (if this condition is true, do something)
-- `$CurrentSize.MaxSize` = Get the MaxSize property from our verification check
-- `-ge` = "Greater than or Equal to" operator
-- `$RequiredSizeKB` = Compare against our target value (32768)
-- **What this means:** "If the current log size is greater than or equal to what we wanted, then we succeeded"
 
-**🛡️ Error Handling:**
+  * `if`: A conditional statement—"if this condition is true, do something."
+  * `$CurrentSize.MaxSize`: Accesses the actual size number from the value we just read.
+  * `-ge`: The "Greater than or Equal to" operator.
+  * **What it means:** "If the current log size is greater than or equal to what we set it to, then we succeeded."
+
+-----
+
+### **🛡️ Error Handling**
+
 ```powershell
 try {
     # Our main code here
@@ -404,10 +431,9 @@ try {
     # Error handling here
 }
 ```
-- `try { }` = "Try to execute this code"
-- `catch { }` = "If anything goes wrong, do this instead"
-- This prevents the script from crashing if something unexpected happens
-- **Why important:** Registry modifications can fail due to permissions, missing keys, etc.
+
+  * `try { ... }`: Tells PowerShell to "try to execute this block of code."
+  * `catch { ... }`: If anything inside the `try` block fails, the script immediately jumps to the `catch` block instead of crashing. This is essential for handling issues like permission errors.
 
 </details>
 
