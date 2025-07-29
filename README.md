@@ -561,25 +561,30 @@ $RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Security"
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
     Last Modified   : 2025-07-29
-    Version         : 1.0
+    Version         : 1.1
     STIG-ID         : WN11-AU-000510
 #>
 
 # Define the minimum required log size in KB
 $RequiredSizeKB = 32768
 
-# Registry path for System event log settings
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\System"
+# Correct registry path for STIG compliance
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
 
 try {
-    Write-Host "Configuring System Event Log size..." -ForegroundColor Yellow
-    
+    Write-Host "Configuring System Event Log size (STIG WN11-AU-000510)..." -ForegroundColor Yellow
+
+    # Ensure the registry path exists
+    if (-not (Test-Path $RegistryPath)) {
+        New-Item -Path $RegistryPath -Force | Out-Null
+    }
+
     # Set the maximum log file size
     Set-ItemProperty -Path $RegistryPath -Name "MaxSize" -Value $RequiredSizeKB -Type DWord
-    
+
     # Verify the setting was applied
     $CurrentSize = Get-ItemProperty -Path $RegistryPath -Name "MaxSize" -ErrorAction SilentlyContinue
-    
+
     if ($CurrentSize.MaxSize -ge $RequiredSizeKB) {
         Write-Host "✓ System Event Log size successfully set to $($CurrentSize.MaxSize) KB" -ForegroundColor Green
         Write-Host "✓ STIG WN11-AU-000510 requirement satisfied" -ForegroundColor Green
@@ -593,32 +598,48 @@ try {
 
 **How it works:**
 
-**🎯 The Big Picture:** System event logs record hardware, driver, and core operating system events. While not as security-critical as Security logs, they're essential for troubleshooting and understanding system behavior. STIG requires 32 MB (same as Application logs) for adequate system event retention.
+**🎯 The Big Picture:**
+System event logs capture critical information about the operating system’s core functions — including hardware issues, driver behavior, and service events. While not as security-focused as Security logs, they are vital for **diagnostics and stability analysis**. According to **STIG WN11-AU-000510**, the System log must be configured with a minimum size of **32 MB (32768 KB)** to retain enough event history for effective troubleshooting.
+
+---
 
 **📋 Our Strategy:**
-1. Configure System event log to 32 MB (32768 KB)
-2. Target the System event log registry location
-3. Use identical approach to other event log configurations
+
+1. Set the **System Event Log size** to **32 MB (32768 KB)**
+2. Modify the **Group Policy registry location** to ensure STIG compliance
+3. Use a consistent and verifiable approach like with Application and Security logs
+
+---
 
 **🔍 What System Events Include:**
-- Hardware failures and warnings
-- Driver loading and unloading
-- Service start/stop events  
-- System boot and shutdown events
-- Critical system errors
+
+* Hardware failures and alerts (e.g., disk errors, overheating)
+* Driver load/unload operations
+* Service startup and shutdown events
+* System boot sequences and shutdown logs
+* Kernel and OS-level errors
+
+---
 
 **🔧 Code Explanation:**
+
 ```powershell
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\System"
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\System"
 ```
-- Same registry structure pattern: `EventLog\System` instead of `EventLog\Application`
-- Windows maintains separate configuration for each log type
+
+* This is the **STIG-required Group Policy path**
+* Ensures the setting persists and is picked up by **compliance scans** (e.g., SCAP, ACAS)
+* Matches the structure used by Application and Security log configurations under `SOFTWARE\Policies`
+
+---
 
 **💡 Why 32 MB for System Logs:**
-- System events are less frequent than security events but more frequent than application events
-- 32 MB provides adequate storage for several weeks of system events
-- Ensures administrators can troubleshoot recent system issues
-- Balances storage space with retention needs
+
+* System logs aren't as high-volume as security logs but **more active than application logs**
+* **32 MB provides sufficient history** to identify recent hardware, service, or boot-related problems
+* Helps administrators detect and resolve issues like failing services, unstable drivers, or system crashes
+* A practical compromise between **storage efficiency** and **diagnostic value**
+
 
 </details>
 
