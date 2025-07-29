@@ -1,0 +1,85 @@
+# Temporary files
+*.tmp
+*.temp
+*~
+.DS_Store
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Configuration files with sensitive data
+config/*-prod.json
+config/*-production.json
+config/secrets.json
+*.credentials# PowerShell specific
+*.ps1xml
+*.ps1xml~
+*.psc1
+*.psc1~
+
+# PowerShell Module Cache
+PSGetModuleInfo.xml
+
+# PowerShell transcripts
+PowerShell_transcript.*
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Reports (except templates)
+reports/*.xml
+reports/*.html
+reports/*.csv
+!reports/sample-*
+!reports/*-template.*
+
+# Build artifacts
+bin/
+obj/
+
+# IDE files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# OS generated files
+.DS_Store?
+Icon?
+
+# Archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
