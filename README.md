@@ -964,55 +964,49 @@ if ($CurrentSetting1.NoDriveTypeAutoRun -eq 255 -and $CurrentSetting2.NoAutoplay
 ```powershell
 <#
 .SYNOPSIS
-    Turns off Microsoft consumer experiences to meet STIG WN11-CC-000197 requirements.
+    Configures the Application event log size to meet STIG WN11-AU-000500 requirements.
 .DESCRIPTION
-    Disables Microsoft consumer experiences to prevent suggestions and installation of third-party applications.
+    Sets the maximum Application event log size to 32768 KB (32 MB) or greater as required by STIG.
 .NOTES
     Author          : Abdullah Al Rafi
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
     Last Modified   : 2025-07-29
-    Version         : 1.0
-    STIG-ID         : WN11-CC-000197
+    Version         : 1.1
+    STIG-ID         : WN11-AU-000500
 #>
 
-# Registry path for Cloud Content policies
-$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+# Define the minimum required log size in KB
+$RequiredSizeKB = 32768
+
+# Registry path for Application event log policy settings
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
 
 try {
-    Write-Host "Turning off Microsoft consumer experiences..." -ForegroundColor Yellow
-    
-    # Create the registry path if it doesn't exist
-    if (!(Test-Path $RegistryPath)) {
+    Write-Host "Configuring Application Event Log size..." -ForegroundColor Yellow
+
+    # Create the registry key if it doesn't exist
+    if (-not (Test-Path $RegistryPath)) {
         New-Item -Path $RegistryPath -Force | Out-Null
-        Write-Host "Created registry path: $RegistryPath" -ForegroundColor Cyan
+        Write-Host "Created missing registry path: $RegistryPath" -ForegroundColor Cyan
     }
-    
-    # Turn off Microsoft consumer experiences
-    Set-ItemProperty -Path $RegistryPath -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord
-    
-    # Also disable third-party suggestions in Windows spotlight
-    Set-ItemProperty -Path $RegistryPath -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord
-    
-    # Disable consumer account state content
-    Set-ItemProperty -Path $RegistryPath -Name "DisableConsumerAccountStateContent" -Value 1 -Type DWord
-    
-    # Verify the settings were applied
-    $Setting1 = Get-ItemProperty -Path $RegistryPath -Name "DisableWindowsConsumerFeatures" -ErrorAction SilentlyContinue
-    $Setting2 = Get-ItemProperty -Path $RegistryPath -Name "DisableThirdPartySuggestions" -ErrorAction SilentlyContinue
-    
-    if ($Setting1.DisableWindowsConsumerFeatures -eq 1 -and $Setting2.DisableThirdPartySuggestions -eq 1) {
-        Write-Host "✓ Microsoft consumer experiences successfully disabled" -ForegroundColor Green
-        Write-Host "✓ STIG WN11-CC-000197 requirement satisfied" -ForegroundColor Green
+
+    # Set the maximum log file size
+    Set-ItemProperty -Path $RegistryPath -Name "MaxSize" -Value $RequiredSizeKB -Type DWord
+
+    # Verify the setting was applied
+    $CurrentSize = Get-ItemProperty -Path $RegistryPath -Name "MaxSize" -ErrorAction SilentlyContinue
+
+    if ($CurrentSize.MaxSize -ge $RequiredSizeKB) {
+        Write-Host "✓ Application Event Log size successfully set to $($CurrentSize.MaxSize) KB" -ForegroundColor Green
+        Write-Host "✓ STIG WN11-AU-000500 requirement satisfied" -ForegroundColor Green
     } else {
-        Write-Host "✗ Failed to disable Microsoft consumer experiences" -ForegroundColor Red
+        Write-Host "✗ Failed to set Application Event Log size" -ForegroundColor Red
     }
 } catch {
-    Write-Host "✗ Error configuring consumer experience settings: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "✗ Error configuring Application Event Log: $($_.Exception.Message)" -ForegroundColor Red
 }
-
-Write-Host "System will no longer show consumer app suggestions or promotions." -ForegroundColor Green
 ```
 
 **How it works:**
