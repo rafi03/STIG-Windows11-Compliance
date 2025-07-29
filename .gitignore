@@ -1,85 +1,109 @@
-# Temporary files
-*.tmp
-*.temp
-*~
-.DS_Store
-
-# Backup files
-*.bak
-*.backup
-*.old
-
-# Configuration files with sensitive data
-config/*-prod.json
-config/*-production.json
-config/secrets.json
-*.credentials# PowerShell specific
+# PowerShell and Windows specific files
 *.ps1xml
-*.ps1xml~
-*.psc1
-*.psc1~
+*.psd1
+*.psm1~
+*.tmp
+*.log
+*.bak
 
-# PowerShell Module Cache
-PSGetModuleInfo.xml
+# PowerShell Transcripts (contain sensitive information)
+*transcript*
+PowerShellTranscripts/
+Transcripts/
 
-# PowerShell transcripts
-PowerShell_transcript.*
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# Windows
+# Windows System Files
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
-*.cab
-*.msi
-*.msm
-*.msp
-*.lnk
 
-# Logs
-*.log
-logs/
-*.log.*
+# Registry backups (may contain sensitive data)
+*.reg
+STIGBackup_*
 
-# Reports (except templates)
-reports/*.xml
-reports/*.html
-reports/*.csv
-!reports/sample-*
-!reports/*-template.*
+# Test results and reports
+TestResults/
+*.html
+GPReport.*
+compliance-report-*
 
-# Build artifacts
-bin/
-obj/
+# Temporary PowerShell files
+*.ps1~
+*.pssc
+*.psrc
 
-# IDE files
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
+# Visual Studio Code settings
+.vscode/
+*.code-workspace
 
 # JetBrains IDEs
 .idea/
 *.iml
-*.ipr
-*.iws
 
-# Local environment files
-.env
-.env.local
-.env.*.local
+# Windows Event Logs
+*.evtx
+*.etl
+
+# Backup and swap files
+*~
+*.swp
+*.swo
+*~
 
 # OS generated files
+.DS_Store
 .DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Icon?
 
-# Archive files
-*.zip
-*.rar
+# Archives
 *.7z
-*.tar
+*.jar
+*.rar
+*.zip
 *.gz
+*.bzip
+*.bz2
+*.xz
+*.lzma
+*.cab
+
+# Packing-only formats
+*.iso
+*.tar
+
+# Package management
+packages/
+
+# Build outputs
+bin/
+obj/
+out/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Custom exclusions for this project
+compliance-check-results/
+backup-settings/
+system-snapshots/
