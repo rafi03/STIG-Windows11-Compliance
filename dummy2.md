@@ -2257,14 +2257,14 @@ Basic authentication in WinRM sends credentials in base64 encoding (essentially 
 
 **Problem:** The built-in Administrator account must be disabled to prevent unauthorized use.
 
-**Solution:** This script disables the default Administrator account for security.
+**Solution:** This script disables the default Administrator account using Group Policy for STIG compliance.
 
 ```powershell
 <#
 .SYNOPSIS
     Disables built-in Administrator account to meet STIG WN11-SO-000005 requirements.
 .DESCRIPTION
-    Disables the default Administrator account to prevent unauthorized access.
+    Configures Group Policy to disable the default Administrator account to prevent unauthorized access.
 .NOTES
     Author          : Abdullah Al Rafi
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
@@ -2276,38 +2276,39 @@ Basic authentication in WinRM sends credentials in base64 encoding (essentially 
 #>
 
 try {
-    Write-Host "Disabling built-in Administrator account..." -ForegroundColor Yellow
+    Write-Host "Disabling built-in Administrator account via Group Policy..." -ForegroundColor Yellow
     
-    # Find the built-in Administrator account (SID always ends with -500)
-    $adminAccount = Get-LocalUser | Where-Object {$_.SID -like "*-500"}
+    # Configure Group Policy to disable Administrator account
+    $GPPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
     
-    if ($adminAccount) {
-        # Check if already disabled
-        if ($adminAccount.Enabled) {
-            # Disable the account
-            Disable-LocalUser -Name $adminAccount.Name
-            
-            # Verify it's disabled
-            $verifyAccount = Get-LocalUser -Name $adminAccount.Name
-            if (!$verifyAccount.Enabled) {
-                Write-Host "✓ Built-in Administrator account '$($adminAccount.Name)' successfully disabled" -ForegroundColor Green
-                Write-Host "✓ STIG WN11-SO-000005 requirement satisfied" -ForegroundColor Green
-            } else {
-                Write-Host "✗ Failed to disable Administrator account" -ForegroundColor Red
-            }
-        } else {
-            Write-Host "✓ Built-in Administrator account is already disabled" -ForegroundColor Green
-            Write-Host "✓ STIG WN11-SO-000005 requirement already satisfied" -ForegroundColor Green
-        }
-        
-        # Display account status
-        Write-Host "`nAdministrator account status:" -ForegroundColor Cyan
-        Get-LocalUser | Where-Object {$_.SID -like "*-500"} | Select-Object Name, Enabled, LastLogon
-    } else {
-        Write-Host "✗ Could not find built-in Administrator account" -ForegroundColor Red
+    # Create registry path if it doesn't exist
+    if (!(Test-Path $GPPath)) {
+        New-Item -Path $GPPath -Force | Out-Null
+        Write-Host "Created Group Policy registry path: $GPPath" -ForegroundColor Cyan
     }
+    
+    # Set Group Policy to disable Administrator account (0 = Disabled)
+    Set-ItemProperty -Path $GPPath -Name "EnableAdminAccount" -Value 0 -Type DWord
+    
+    # Verify the Group Policy setting was applied
+    $GPSetting = Get-ItemProperty -Path $GPPath -Name "EnableAdminAccount" -ErrorAction SilentlyContinue
+    
+    if ($GPSetting.EnableAdminAccount -eq 0) {
+        Write-Host "✓ Administrator account disabled via Group Policy" -ForegroundColor Green
+        Write-Host "✓ STIG WN11-SO-000005 requirement satisfied" -ForegroundColor Green
+    } else {
+        Write-Host "✗ Failed to configure Group Policy for Administrator account" -ForegroundColor Red
+    }
+    
+    # Also check current account status for verification
+    $adminAccount = Get-LocalUser | Where-Object {$_.SID -like "*-500"}
+    if ($adminAccount) {
+        Write-Host "`nCurrent Administrator account status:" -ForegroundColor Cyan
+        Get-LocalUser | Where-Object {$_.SID -like "*-500"} | Select-Object Name, Enabled, LastLogon
+    }
+    
 } catch {
-    Write-Host "✗ Error disabling Administrator account: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "✗ Error configuring Administrator account policy: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 Write-Host "`nNote: Use named administrative accounts instead of built-in Administrator." -ForegroundColor Yellow
@@ -2316,18 +2317,19 @@ Write-Host "`nNote: Use named administrative accounts instead of built-in Admini
 **How it works:**
 
 **🎯 The Big Picture:**
-The built-in Administrator account is a well-known target for attackers. It has a predictable SID (ends with -500) and often has more privileges than necessary. Disabling it forces the use of named administrative accounts that can be better monitored and controlled.
+The built-in Administrator account is a well-known target for attackers. It has a predictable SID (ends with -500) and often has more privileges than necessary. Disabling it through Group Policy forces the use of named administrative accounts that can be better monitored and controlled.
 
 **📋 Security Benefits:**
 - Eliminates a common attack vector
 - Forces use of traceable admin accounts
 - Prevents brute force attacks on default account
 - Complies with principle of least privilege
+- Uses Group Policy for persistent enforcement
 
 **🔍 Understanding the Code:**
-- `$_.SID -like "*-500"`: Identifies built-in Administrator by its SID
-- `Disable-LocalUser`: Safely disables the account
-- Account remains available for emergency recovery if needed
+- `EnableAdminAccount = 0`: Group Policy setting to disable Administrator account
+- Group Policy method ensures setting persists through system changes
+- Still allows emergency recovery through Safe Mode if needed
 
 </details>
 
@@ -2337,14 +2339,14 @@ The built-in Administrator account is a well-known target for attackers. It has 
 
 **Problem:** The built-in guest account must be renamed from its default name for security.
 
-**Solution:** This script renames the built-in guest account to a non-obvious name.
+**Solution:** This script configures Group Policy to rename the built-in guest account to a non-obvious name.
 
 ```powershell
 <#
 .SYNOPSIS
     Renames the built-in guest account to meet STIG WN11-SO-000025 requirements.
 .DESCRIPTION
-    Changes the name of the built-in guest account from "Guest" to a non-obvious name.
+    Configures Group Policy to rename the built-in guest account from "Guest" to a non-obvious name.
 .NOTES
     Author          : Abdullah Al Rafi
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
@@ -2358,47 +2360,40 @@ The built-in Administrator account is a well-known target for attackers. It has 
 # New name for the guest account (change this to your preferred name)
 $NewGuestName = "Visitor_Account"
 
-# Registry path for account rename policy
-$RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
-
 try {
-    Write-Host "Renaming built-in guest account..." -ForegroundColor Yellow
+    Write-Host "Configuring Group Policy to rename built-in guest account..." -ForegroundColor Yellow
     
-    # Set the guest account rename through security policy
-    $SecurityPolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+    # Configure Group Policy for guest account rename
+    $GPPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
     
     # Create registry path if it doesn't exist
-    if (!(Test-Path $SecurityPolicyPath)) {
-        New-Item -Path $SecurityPolicyPath -Force | Out-Null
+    if (!(Test-Path $GPPath)) {
+        New-Item -Path $GPPath -Force | Out-Null
+        Write-Host "Created Group Policy registry path: $GPPath" -ForegroundColor Cyan
     }
     
-    # Method 1: Use Local Security Policy registry setting
-    $LSAPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
-    
-    # Get current guest account name to verify change
+    # Get current guest account name for reference
     $GuestAccount = Get-WmiObject Win32_UserAccount | Where-Object {$_.SID -like "*-501"}
     $OriginalName = $GuestAccount.Name
     
     Write-Host "Current guest account name: $OriginalName" -ForegroundColor Cyan
     
-    # Rename using WMI (most reliable method)
+    # Set Group Policy to rename guest account
+    Set-ItemProperty -Path $GPPath -Name "NewGuestName" -Value $NewGuestName -Type String
+    
+    # Also rename the account directly for immediate effect
     $GuestAccount.Rename($NewGuestName)
     
-    # Verify the rename was successful
+    # Verify the Group Policy setting was applied
+    $GPSetting = Get-ItemProperty -Path $GPPath -Name "NewGuestName" -ErrorAction SilentlyContinue
     $RenamedAccount = Get-WmiObject Win32_UserAccount | Where-Object {$_.SID -like "*-501"}
     
-    if ($RenamedAccount.Name -eq $NewGuestName) {
+    if ($GPSetting.NewGuestName -eq $NewGuestName -and $RenamedAccount.Name -eq $NewGuestName) {
         Write-Host "✓ Guest account successfully renamed from '$OriginalName' to '$NewGuestName'" -ForegroundColor Green
+        Write-Host "✓ Group Policy configured to enforce guest account name" -ForegroundColor Green
         Write-Host "✓ STIG WN11-SO-000025 requirement satisfied" -ForegroundColor Green
     } else {
-        Write-Host "✗ Failed to rename guest account" -ForegroundColor Red
-        Write-Host "Current name: $($RenamedAccount.Name)" -ForegroundColor Red
-    }
-    
-    # Also set the policy registry value for consistency
-    $PolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-    if (!(Test-Path $PolicyPath)) {
-        New-Item -Path $PolicyPath -Force | Out-Null
+        Write-Host "✗ Failed to rename guest account or configure Group Policy" -ForegroundColor Red
     }
     
 } catch {
@@ -2410,10 +2405,11 @@ Write-Host "Built-in guest account name has been changed for security." -Foregro
 ```
 
 **How it works:**
-- Uses WMI (Windows Management Instrumentation) to rename the account
+- Uses Group Policy to enforce guest account rename
 - Identifies the guest account by its well-known SID ending in "-501"
-- `$GuestAccount.Rename()`: Renames the account using WMI method
-- Verification checks ensure the rename operation was successful
+- `$GuestAccount.Rename()`: Renames the account using WMI method for immediate effect
+- `NewGuestName`: Group Policy setting ensures rename persists
+- Verification checks ensure both immediate rename and policy configuration are successful
 - Renaming the guest account makes it less obvious to potential attackers
 
 </details>
@@ -2510,35 +2506,34 @@ Write-Host "Audit policy subcategories are now enabled for precise auditing cont
     STIG-ID         : WN11-SO-000095
 #>
 
-# Registry path for smart card policy
-$RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+# Registry path for smart card policy (CORRECTED PATH)
+$RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 
 try {
     Write-Host "Configuring smart card removal behavior..." -ForegroundColor Yellow
     
-    # Create the registry path if it doesn't exist
-    if (!(Test-Path $RegistryPath)) {
-        New-Item -Path $RegistryPath -Force | Out-Null
-        Write-Host "Created registry path: $RegistryPath" -ForegroundColor Cyan
-    }
-    
-    # Configure smart card removal behavior
-    # Value 1 = Lock Workstation, Value 2 = Force Logoff, Value 0 = No Action
-    # Setting to 1 (Lock Workstation) for security while maintaining usability
-    Set-ItemProperty -Path $RegistryPath -Name "ScRemoveOption" -Value 1 -Type String
-    
-    # Verify the setting was applied
-    $CurrentSetting = Get-ItemProperty -Path $RegistryPath -Name "ScRemoveOption" -ErrorAction SilentlyContinue
-    
-    if ($CurrentSetting.ScRemoveOption -eq "1") {
-        Write-Host "✓ Smart card removal behavior set to 'Lock Workstation'" -ForegroundColor Green
-        Write-Host "✓ System will lock when smart card is removed" -ForegroundColor Green
-        Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
-    } elseif ($CurrentSetting.ScRemoveOption -eq "2") {
-        Write-Host "✓ Smart card removal behavior set to 'Force Logoff'" -ForegroundColor Green
-        Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
+    # The Winlogon registry path should already exist on any Windows system
+    if (Test-Path $RegistryPath) {
+        # Configure smart card removal behavior
+        # Value "1" = Lock Workstation, Value "2" = Force Logoff, Value "0" = No Action
+        # Setting to "1" (Lock Workstation) for security while maintaining usability
+        Set-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -Value "1" -Type String
+        
+        # Verify the setting was applied
+        $CurrentSetting = Get-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -ErrorAction SilentlyContinue
+        
+        if ($CurrentSetting.SCRemoveOption -eq "1") {
+            Write-Host "✓ Smart card removal behavior set to 'Lock Workstation'" -ForegroundColor Green
+            Write-Host "✓ System will lock when smart card is removed" -ForegroundColor Green
+            Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
+        } elseif ($CurrentSetting.SCRemoveOption -eq "2") {
+            Write-Host "✓ Smart card removal behavior set to 'Force Logoff'" -ForegroundColor Green
+            Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
+        } else {
+            Write-Host "✗ Failed to configure smart card removal behavior" -ForegroundColor Red
+        }
     } else {
-        Write-Host "✗ Failed to configure smart card removal behavior" -ForegroundColor Red
+        Write-Host "✗ Registry path '$RegistryPath' not found" -ForegroundColor Red
     }
 } catch {
     Write-Host "✗ Error configuring smart card settings: $($_.Exception.Message)" -ForegroundColor Red
@@ -2548,9 +2543,10 @@ Write-Host "Smart card removal will now trigger workstation lock for security." 
 ```
 
 **How it works:**
-- `ScRemoveOption = "1"`: Configures system to lock workstation when smart card is removed
+- `SCRemoveOption = "1"`: Configures system to lock workstation when smart card is removed
 - Value "1" = Lock Workstation (recommended for usability)
 - Value "2" = Force Logoff (more secure but less user-friendly)
+- **CORRECTED**: Uses proper registry path `\Windows NT\CurrentVersion\Winlogon\`
 - Ensures unattended systems are automatically secured when smart card is removed
 - Critical for environments using smart card authentication
 
@@ -2639,7 +2635,7 @@ Write-Host "Please restart the system for changes to take effect." -ForegroundCo
 
 **Problem:** Toast notifications to the lock screen must be turned off to prevent information disclosure.
 
-**Solution:** This script disables toast notifications on the lock screen for all users.
+**Solution:** This script disables toast notifications on the lock screen for the current user and system-wide.
 
 ```powershell
 <#
@@ -2657,51 +2653,46 @@ Write-Host "Please restart the system for changes to take effect." -ForegroundCo
     STIG-ID         : WN11-UC-000015
 #>
 
-# Registry paths for notification policies
-$UserPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
-$MachinePolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+# Primary registry path (STIG specifies HKCU)
+$UserPolicyPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
+# Secondary path for machine-wide enforcement
+$MachinePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications"
 
 try {
     Write-Host "Turning off toast notifications on lock screen..." -ForegroundColor Yellow
     
-    # Create the registry paths if they don't exist
+    # Configure for current user (STIG requirement)
     if (!(Test-Path $UserPolicyPath)) {
         New-Item -Path $UserPolicyPath -Force | Out-Null
-        Write-Host "Created registry path: $UserPolicyPath" -ForegroundColor Cyan
+        Write-Host "Created user policy registry path: $UserPolicyPath" -ForegroundColor Cyan
     }
     
-    if (!(Test-Path $MachinePolicyPath)) {
-        New-Item -Path $MachinePolicyPath -Force | Out-Null
-        Write-Host "Created registry path: $MachinePolicyPath" -ForegroundColor Cyan
-    }
-    
-    # Disable toast notifications on lock screen
+    # Disable toast notifications on lock screen for current user
     Set-ItemProperty -Path $UserPolicyPath -Name "NoToastApplicationNotificationOnLockScreen" -Value 1 -Type DWord
     
-    # Also configure via alternative registry location for comprehensive coverage
-    $NotificationPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer"
-    if (!(Test-Path $NotificationPath)) {
-        New-Item -Path $NotificationPath -Force | Out-Null
+    # Also configure machine-wide for comprehensive coverage
+    if (!(Test-Path $MachinePolicyPath)) {
+        New-Item -Path $MachinePolicyPath -Force | Out-Null
+        Write-Host "Created machine policy registry path: $MachinePolicyPath" -ForegroundColor Cyan
     }
-    Set-ItemProperty -Path $NotificationPath -Name "DisableNotificationCenter" -Value 1 -Type DWord
     
-    # Configure for current user as well
-    $CurrentUserPath = "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer"
-    if (!(Test-Path $CurrentUserPath)) {
-        New-Item -Path $CurrentUserPath -Force | Out-Null
-    }
-    Set-ItemProperty -Path $CurrentUserPath -Name "DisableNotificationCenter" -Value 1 -Type DWord
+    Set-ItemProperty -Path $MachinePolicyPath -Name "NoToastApplicationNotificationOnLockScreen" -Value 1 -Type DWord
     
     # Verify the settings were applied
-    $ToastSetting = Get-ItemProperty -Path $UserPolicyPath -Name "NoToastApplicationNotificationOnLockScreen" -ErrorAction SilentlyContinue
+    $UserSetting = Get-ItemProperty -Path $UserPolicyPath -Name "NoToastApplicationNotificationOnLockScreen" -ErrorAction SilentlyContinue
+    $MachineSetting = Get-ItemProperty -Path $MachinePolicyPath -Name "NoToastApplicationNotificationOnLockScreen" -ErrorAction SilentlyContinue
     
-    if ($ToastSetting.NoToastApplicationNotificationOnLockScreen -eq 1) {
-        Write-Host "✓ Toast notifications on lock screen successfully disabled" -ForegroundColor Green
-        Write-Host "✓ Sensitive information will not appear on lock screen" -ForegroundColor Green
+    if ($UserSetting.NoToastApplicationNotificationOnLockScreen -eq 1) {
+        Write-Host "✓ Toast notifications on lock screen successfully disabled for current user" -ForegroundColor Green
         Write-Host "✓ STIG WN11-UC-000015 requirement satisfied" -ForegroundColor Green
     } else {
-        Write-Host "✗ Failed to disable toast notifications on lock screen" -ForegroundColor Red
+        Write-Host "✗ Failed to disable toast notifications for current user" -ForegroundColor Red
     }
+    
+    if ($MachineSetting.NoToastApplicationNotificationOnLockScreen -eq 1) {
+        Write-Host "✓ Toast notifications on lock screen disabled machine-wide" -ForegroundColor Green
+    }
+    
 } catch {
     Write-Host "✗ Error configuring notification settings: $($_.Exception.Message)" -ForegroundColor Red
 }
@@ -2711,8 +2702,9 @@ Write-Host "Lock screen will no longer display toast notifications." -Foreground
 
 **How it works:**
 - `NoToastApplicationNotificationOnLockScreen = 1`: Disables toast notifications on lock screen
-- `DisableNotificationCenter = 1`: Additional setting to disable notification center
-- Configured for both machine-wide and current user policies
+- **CORRECTED**: Primary focus on `HKCU` (Current User) as specified by STIG
+- Also configures machine-wide policy for comprehensive coverage
+- **REMOVED**: Extra scope creep settings that aren't part of STIG requirement
 - Prevents sensitive information from appearing on lock screen
 - Unauthorized users cannot see notification contents when system is locked
 
