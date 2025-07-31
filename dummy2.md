@@ -2495,60 +2495,81 @@ Write-Host "Audit policy subcategories are now enabled for precise auditing cont
 .SYNOPSIS
     Configures smart card removal behavior to meet STIG WN11-SO-000095 requirements.
 .DESCRIPTION
-    Sets the system to lock the workstation when a smart card is removed.
+    Sets the system to lock the workstation when a smart card is removed according to 
+    STIG specifications. Uses the correct registry path and value type.
 .NOTES
     Author          : Abdullah Al Rafi
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
     Last Modified   : 2025-07-29
-    Version         : 1.0
+    Version         : 1.1
     STIG-ID         : WN11-SO-000095
 #>
 
-# Registry path for smart card policy (CORRECTED PATH)
+# CORRECT REGISTRY PATH PER STIG REQUIREMENT
 $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 
 try {
     Write-Host "Configuring smart card removal behavior..." -ForegroundColor Yellow
     
-    # The Winlogon registry path should already exist on any Windows system
-    if (Test-Path $RegistryPath) {
-        # Configure smart card removal behavior
-        # Value "1" = Lock Workstation, Value "2" = Force Logoff, Value "0" = No Action
-        # Setting to "1" (Lock Workstation) for security while maintaining usability
-        Set-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -Value "1" -Type String
-        
-        # Verify the setting was applied
-        $CurrentSetting = Get-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -ErrorAction SilentlyContinue
-        
-        if ($CurrentSetting.SCRemoveOption -eq "1") {
-            Write-Host "✓ Smart card removal behavior set to 'Lock Workstation'" -ForegroundColor Green
-            Write-Host "✓ System will lock when smart card is removed" -ForegroundColor Green
-            Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
-        } elseif ($CurrentSetting.SCRemoveOption -eq "2") {
-            Write-Host "✓ Smart card removal behavior set to 'Force Logoff'" -ForegroundColor Green
-            Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
-        } else {
-            Write-Host "✗ Failed to configure smart card removal behavior" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "✗ Registry path '$RegistryPath' not found" -ForegroundColor Red
+    # Verify Winlogon registry path exists
+    if (-not (Test-Path $RegistryPath)) {
+        Write-Host "✗ Required registry path not found: $RegistryPath" -ForegroundColor Red
+        Write-Host "Creating registry path..." -ForegroundColor Yellow
+        New-Item -Path $RegistryPath -Force | Out-Null
     }
+
+    # Configure smart card removal behavior
+    # Value "1" = Lock Workstation (recommended)
+    # Value "2" = Force Logoff (more secure)
+    $DesiredValue = "1"  # Change to "2" if Force Logoff is required
+
+    # Set registry value with CORRECT VALUE TYPE (REG_SZ)
+    Set-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -Value $DesiredValue -Type String
+    
+    # Verify the setting
+    $CurrentSetting = Get-ItemProperty -Path $RegistryPath -Name "SCRemoveOption" -ErrorAction SilentlyContinue
+    
+    if ($CurrentSetting.SCRemoveOption -eq $DesiredValue) {
+        Write-Host "✓ Smart card removal behavior set to '$(
+            if ($DesiredValue -eq '1') {'Lock Workstation'} else {'Force Logoff'}
+        )'" -ForegroundColor Green
+        Write-Host "✓ STIG WN11-SO-000095 requirement satisfied" -ForegroundColor Green
+    } else {
+        Write-Host "✗ Failed to configure smart card removal behavior" -ForegroundColor Red
+        # FIXED: Use PowerShell 5.1 compatible syntax
+        $CurrentValue = if ($CurrentSetting.SCRemoveOption) { $CurrentSetting.SCRemoveOption } else { 'Not configured' }
+        Write-Host "Current setting: $CurrentValue" -ForegroundColor Red
+    }
+    
+    # Display STIG verification command
+    Write-Host "`nVerify with:" -ForegroundColor Cyan
+    Write-Host "Get-ItemProperty -Path '$RegistryPath' | Select-Object SCRemoveOption" -ForegroundColor White
+
 } catch {
-    Write-Host "✗ Error configuring smart card settings: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "✗ Critical error: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-Write-Host "Smart card removal will now trigger workstation lock for security." -ForegroundColor Green
+# System impact notice
+Write-Host "`n[!] SYSTEM IMPACT:" -ForegroundColor Magenta
+Write-Host " - Smart card removal will now trigger workstation lock" -ForegroundColor Yellow
+Write-Host " - No reboot required - changes take effect immediately" -ForegroundColor Green
 ```
 
 **How it works:**
+
 - `SCRemoveOption = "1"`: Configures system to lock workstation when smart card is removed
 - Value "1" = Lock Workstation (recommended for usability)
-- Value "2" = Force Logoff (more secure but less user-friendly)
-- **CORRECTED**: Uses proper registry path `\Windows NT\CurrentVersion\Winlogon\`
+- Value "2" = Force Logoff (more secure but less user-friendly) 
+- Uses proper registry path `\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\`
+- **Value Type**: Uses REG_SZ (String) as required by STIG specification
+- **Path Validation**: Creates registry path if it doesn't exist (though Winlogon should always exist)
+- **PowerShell 5.1 Compatible**: Uses traditional if-else syntax instead of null-coalescing operator
+- **Immediate Effect**: No system restart required - changes take effect immediately
+- **Verification Built-in**: Provides registry verification command for STIG auditing
 - Ensures unattended systems are automatically secured when smart card is removed
-- Critical for environments using smart card authentication
+- Critical for environments using smart card authentication where physical security is paramount
 
 </details>
 
