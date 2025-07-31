@@ -1414,63 +1414,58 @@ Write-Host "System is now protected from automatic execution of autorun commands
 .SYNOPSIS
     Disables autoplay for all drives to meet STIG WN11-CC-000190 requirements.
 .DESCRIPTION
-    Turns off AutoPlay for all drives to prevent malicious code from executing automatically.
+    Turns off AutoPlay for all drives by setting the NoDriveTypeAutoRun value to 255 (0xFF).
+    This prevents malicious code from executing automatically from any drive type.
 .NOTES
     Author          : Abdullah Al Rafi
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
-    Last Modified   : 2025-07-29
-    Version         : 1.0
+    Last Modified   : 2025-07-31
+    Version         : 1.1
     STIG-ID         : WN11-CC-000190
 #>
 
-# Registry paths for AutoPlay policies
+# Define the required registry path and value name from the STIG
 $RegistryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+$ValueName = "NoDriveTypeAutoRun"
+$RequiredValue = 255 # 0xFF disables AutoPlay on unknown, removable, CD-ROM, network, and RAM drives
 
 try {
-    Write-Host "Disabling autoplay for all drives..." -ForegroundColor Yellow
-    
+    Write-Host "Disabling AutoPlay for all drives to meet STIG WN11-CC-000190..." -ForegroundColor Yellow
+
     # Create the registry path if it doesn't exist
     if (!(Test-Path $RegistryPath)) {
         New-Item -Path $RegistryPath -Force | Out-Null
         Write-Host "Created registry path: $RegistryPath" -ForegroundColor Cyan
     }
+
+    # Set the required registry value to disable AutoPlay
+    Set-ItemProperty -Path $RegistryPath -Name $ValueName -Value $RequiredValue -Type DWord -Force
     
-    # Disable AutoPlay for all drives
-    # Value 255 (0xFF) = Disable autoplay for all drives
-    Set-ItemProperty -Path $RegistryPath -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord
-    
-    # Also set the Group Policy equivalent
-    $GPRegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer"
-    if (!(Test-Path $GPRegistryPath)) {
-        New-Item -Path $GPRegistryPath -Force | Out-Null
-        Write-Host "Created Group Policy registry path: $GPRegistryPath" -ForegroundColor Cyan
-    }
-    
-    Set-ItemProperty -Path $GPRegistryPath -Name "NoAutoplayfornonVolume" -Value 1 -Type DWord
-    
-    # Verify the settings were applied
-    $CurrentSetting1 = Get-ItemProperty -Path $RegistryPath -Name "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue
-    $CurrentSetting2 = Get-ItemProperty -Path $GPRegistryPath -Name "NoAutoplayfornonVolume" -ErrorAction SilentlyContinue
-    
-    if ($CurrentSetting1.NoDriveTypeAutoRun -eq 255 -and $CurrentSetting2.NoAutoplayfornonVolume -eq 1) {
-        Write-Host "✓ Autoplay successfully disabled for all drives" -ForegroundColor Green
-        Write-Host "✓ STIG WN11-CC-000190 requirement satisfied" -ForegroundColor Green
+    # --- Verification ---
+    $CurrentSetting = Get-ItemProperty -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue
+
+    if ($CurrentSetting.$ValueName -eq $RequiredValue) {
+        Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host "✓ SUCCESS: AutoPlay successfully disabled for all drives." -ForegroundColor Green
+        Write-Host "✓ STIG WN11-CC-000190 requirement satisfied." -ForegroundColor Green
     } else {
-        Write-Host "✗ Failed to disable autoplay for all drives" -ForegroundColor Red
+        Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host "✗ FAILURE: Failed to verify the registry setting." -ForegroundColor Red
+        Write-Host "  Please check permissions for path: $RegistryPath" -ForegroundColor Red
     }
 } catch {
-    Write-Host "✗ Error configuring autoplay settings: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "✗ FATAL ERROR: An exception occurred. $($_.Exception.Message)" -ForegroundColor Red
 }
-
-Write-Host "All drives are now protected from autoplay execution." -ForegroundColor Green
 ```
 
 **How it works:**
 
-**🎯 The Big Picture:** This is the most comprehensive autoplay protection script. While our previous scripts handled specific aspects of autoplay, this one completely disables autoplay for ALL types of drives system-wide. It's like putting a complete lockdown on automatic media execution while still allowing manual access to files.
+**🎯 The Big Picture:** The script targets a single, powerful registry key to achieve system-wide security.
 
+* **`NoDriveTypeAutoRun = 255`**: By setting this `REG_DWORD` value in the Explorer policies, the script uses the hexadecimal value `0xFF`. This is a bitmask that instructs Windows to **disable AutoPlay on all drive types** without exception, including removable media, network drives, and CD-ROMs.
+* **Prevents Malicious Execution**: This ensures that no code can run automatically when a drive is connected, mitigating a common attack vector for malware.
 </details>
 
 #### WN11-CC-000197
@@ -1538,7 +1533,14 @@ Write-Host "System will no longer suggest third-party apps or content." -Foregro
 
 **How it works:**
 
-**🎯 The Big Picture:** Microsoft continuously pushes "consumer experiences" to Windows users - things like app suggestions, promoted content, third-party software recommendations, and sponsored content in the Start menu. In enterprise/government environments, this creates security risks and policy violations. This script completely disables these consumer-focused features to maintain a controlled, professional environment.
+**🎯 The Big Picture:** In a professional or secure environment, features that suggest third-party apps or display ads are considered a distraction and a potential security risk. This script systematically disables these features.
+
+* It targets the **`CloudContent`** policy path in the registry.
+* It sets multiple values to `1` (**Enabled**), including:
+    * **`DisableWindowsConsumerFeatures`**: The primary switch to turn off consumer-focused content.
+    * **`DisableThirdPartySuggestions`**: Specifically blocks suggestions for non-Microsoft applications.
+* This creates a cleaner, more controlled user experience free from unwanted promotions, which is essential for maintaining compliance and security.
+
 
 </details>
 
@@ -1561,64 +1563,55 @@ Write-Host "System will no longer suggest third-party apps or content." -Foregro
     LinkedIn        : linkedin.com/in/abdullah-al-rafi03/
     GitHub          : github.com/rafi03
     Date Created    : 2025-07-29
-    Last Modified   : 2025-07-29
-    Version         : 1.0
+    Last Modified   : 2025-07-31
+    Version         : 1.1
     STIG-ID         : WN11-CC-000210
 #>
 
-# Registry paths for SmartScreen configuration
-$ExplorerPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
-$SmartScreenPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen"
+# Define the registry path required by the STIG
+$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
 
 try {
-    Write-Host "Configuring Windows Defender SmartScreen..." -ForegroundColor Yellow
-    
-    # Create the registry paths if they don't exist
-    if (!(Test-Path $ExplorerPath)) {
-        New-Item -Path $ExplorerPath -Force | Out-Null
-        Write-Host "Created registry path: $ExplorerPath" -ForegroundColor Cyan
+    Write-Host "Configuring Windows Defender SmartScreen for File Explorer..." -ForegroundColor Yellow
+
+    # Create the registry path if it doesn't exist
+    if (!(Test-Path $RegistryPath)) {
+        New-Item -Path $RegistryPath -Force | Out-Null
+        Write-Host "Created registry path: $RegistryPath" -ForegroundColor Cyan
     }
-    
-    if (!(Test-Path $SmartScreenPath)) {
-        New-Item -Path $SmartScreenPath -Force | Out-Null
-        Write-Host "Created registry path: $SmartScreenPath" -ForegroundColor Cyan
-    }
-    
-    # Enable SmartScreen for File Explorer
-    Set-ItemProperty -Path $ExplorerPath -Name "EnableSmartScreen" -Value 1 -Type DWord
-    
-    # Set SmartScreen level to "Block" (Warn and prevent bypass)
-    Set-ItemProperty -Path $ExplorerPath -Name "ShellSmartScreenLevel" -Value "Block" -Type String
-    
-    # Configure SmartScreen for Explorer specifically
-    Set-ItemProperty -Path $SmartScreenPath -Name "ConfigureAppInstallControlEnabled" -Value 1 -Type DWord
-    Set-ItemProperty -Path $SmartScreenPath -Name "ConfigureAppInstallControl" -Value "Anywhere" -Type String
-    
-    # Verify the settings were applied
-    $EnableSetting = Get-ItemProperty -Path $ExplorerPath -Name "EnableSmartScreen" -ErrorAction SilentlyContinue
-    $LevelSetting = Get-ItemProperty -Path $ExplorerPath -Name "ShellSmartScreenLevel" -ErrorAction SilentlyContinue
-    
-    if ($EnableSetting.EnableSmartScreen -eq 1 -and $LevelSetting.ShellSmartScreenLevel -eq "Block") {
-        Write-Host "✓ Windows Defender SmartScreen successfully enabled and configured" -ForegroundColor Green
-        Write-Host "✓ SmartScreen level set to 'Block' (Warn and prevent bypass)" -ForegroundColor Green
-        Write-Host "✓ STIG WN11-CC-000210 requirement satisfied" -ForegroundColor Green
+
+    # Enable SmartScreen (Required by STIG)
+    Set-ItemProperty -Path $RegistryPath -Name "EnableSmartScreen" -Value 1 -Type DWord -Force
+
+    # Set SmartScreen level to "Block" / "Warn and prevent bypass" (Required by STIG)
+    Set-ItemProperty -Path $RegistryPath -Name "ShellSmartScreenLevel" -Value "Block" -Type String -Force
+
+    # --- Verification ---
+    $enableSetting = (Get-ItemProperty -Path $RegistryPath -Name "EnableSmartScreen" -ErrorAction SilentlyContinue).EnableSmartScreen
+    $levelSetting = (Get-ItemProperty -Path $RegistryPath -Name "ShellSmartScreenLevel" -ErrorAction SilentlyContinue).ShellSmartScreenLevel
+
+    if ($enableSetting -eq 1 -and $levelSetting -eq "Block") {
+        Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host "✓ SUCCESS: Windows Defender SmartScreen is enabled and set to 'Block'." -ForegroundColor Green
+        Write-Host "✓ STIG WN11-CC-000210 requirement satisfied." -ForegroundColor Green
     } else {
-        Write-Host "✗ Failed to configure Windows Defender SmartScreen" -ForegroundColor Red
+        Write-Host "--------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host "✗ FAILURE: Failed to verify SmartScreen settings." -ForegroundColor Red
     }
-} catch {
-    Write-Host "✗ Error configuring SmartScreen settings: $($_.Exception.Message)" -ForegroundColor Red
+}
+catch {
+    Write-Host "✗ ERROR: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-Write-Host "SmartScreen will now warn and block potentially malicious programs." -ForegroundColor Green
+Write-Host "SmartScreen configuration complete." -ForegroundColor Green
 ```
 
 **How it works:**
-- `EnableSmartScreen = 1`: Enables SmartScreen functionality
-- `ShellSmartScreenLevel = "Block"`: Sets the protection level to maximum (warn and prevent bypass)
-- SmartScreen checks files and programs against Microsoft's reputation database
-- Blocks or warns about potentially malicious or unknown programs
-- Provides real-time protection against malware downloads
+The script enforces the two specific registry settings required for STIG compliance, working together to protect users.
 
+* **`EnableSmartScreen = 1`**: This `REG_DWORD` value acts as the master switch, turning the SmartScreen service **on** for File Explorer.
+* **`ShellSmartScreenLevel = "Block"`**: This `REG_SZ` (String) value configures the behavior of SmartScreen. Setting it to **`Block`** corresponds to the "Warn and prevent bypass" option, which stops users from ignoring the warning and running a potentially dangerous file.
+* Together, these settings ensure that any file downloaded or transferred to the machine is checked against Microsoft's reputation service before it can be executed.
 </details>
 
 #### WN11-CC-000270
